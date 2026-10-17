@@ -1,0 +1,287 @@
+<!doctype html>
+<!--
+  Hero Wars: Lone Champion — page shell. A fixed 960×540 stage scaled to fit
+  the window (letterboxed), one canvas for all drawing, and DOM overlays for
+  each screen's buttons and panels. Open this file directly; no server needed.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Hero Wars: Lone Champion</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #05040a; touch-action: none;
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  body { font-family: "Trebuchet MS", "DejaVu Sans", sans-serif; color: #f3ead2; }
+  #game { position: absolute; left: 50%; top: 50%; width: 960px; height: 540px; transform-origin: 0 0;
+    overflow: hidden; background: #000; box-shadow: 0 0 40px rgba(0,0,0,.8); }
+  #cv { position: absolute; left: 0; top: 0; width: 960px; height: 540px; display: block; }
+  .screen { position: absolute; inset: 0; display: none; pointer-events: none; }
+  .screen.active { display: block; }
+  .screen button, .screen .live { pointer-events: auto; }
+  .hidden { display: none !important; }
+
+  .btn { font: bold 16px "Trebuchet MS", "DejaVu Sans", sans-serif; color: #fff7dc; cursor: pointer;
+    padding: 8px 18px; border-radius: 10px; border: 2px solid #2b1a08;
+    background: linear-gradient(#7a5a34, #4a3218); box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 3px 0 #1c1006;
+    text-shadow: 0 1px 2px #000; }
+  .btn:hover { filter: brightness(1.12); }
+  .btn:active { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 1px 0 #1c1006; }
+  .btn:disabled { filter: grayscale(.8) brightness(.7); cursor: default; transform: none; }
+  .btn.gold { background: linear-gradient(#ffd767, #d48d16); color: #3a2002; text-shadow: 0 1px 0 rgba(255,255,255,.5); border-color: #5a3500; }
+  .btn.green { background: linear-gradient(#6cd36a, #2a8a30); border-color: #0f3a10; }
+  .btn.blue { background: linear-gradient(#5aa0ff, #2a58b8); border-color: #0e2350; }
+  .btn.red { background: linear-gradient(#e2584a, #9a2418); border-color: #3e0a04; }
+  .btn.big { font-size: 26px; padding: 12px 46px; border-radius: 14px; }
+  .btn.small { font-size: 13px; padding: 4px 10px; border-radius: 8px; }
+  .panel { background: linear-gradient(#2a2238, #171221); border: 2px solid #b48a3a; border-radius: 14px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.6), inset 0 0 0 2px rgba(0,0,0,.4); }
+  .modal { position: absolute; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+  .modal .panel { padding: 22px 30px; text-align: center; min-width: 320px; }
+  .modal h2 { margin: 0 0 14px; font: bold 30px Georgia, "DejaVu Serif", serif; color: #ffd767; text-shadow: 0 2px 4px #000; }
+  .modal p { margin: 0 0 16px; font-size: 15px; }
+  .row { display: flex; gap: 12px; justify-content: center; }
+
+  /* Title */
+  .logo { position: absolute; right: 40px; top: 46px; width: 500px; text-align: center; white-space: nowrap; }
+  .logo-top { font: bold 60px Georgia, "DejaVu Serif", serif; letter-spacing: 2px; color: #ffd767;
+    text-shadow: 0 3px 0 #7a4a08, 0 6px 14px #000; }
+  .logo-main { font: italic bold 34px Georgia, "DejaVu Serif", serif; color: #fff2d0; text-shadow: 0 2px 8px #000; margin-top: -4px; }
+  .logo-sub { font-size: 15px; color: #e8d8b8; margin-top: 8px; text-shadow: 0 1px 3px #000; }
+  .title-btns { position: absolute; right: 40px; top: 250px; width: 500px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .foot { position: absolute; bottom: 10px; right: 16px; font-size: 12px; color: rgba(255,255,255,.55); }
+
+  /* Top bars */
+  .topbar { position: absolute; left: 0; right: 0; top: 0; height: 52px; display: flex; align-items: center; gap: 14px; padding: 0 14px;
+    background: linear-gradient(rgba(30,18,6,.92), rgba(30,18,6,.7)); border-bottom: 2px solid #b48a3a; pointer-events: auto; }
+  .topbar .title { font: bold 20px Georgia, "DejaVu Serif", serif; color: #ffd767; text-shadow: 0 2px 3px #000; }
+  .chip { background: rgba(0,0,0,.45); border: 1px solid #6a5028; border-radius: 16px; padding: 4px 12px; font-size: 14px; font-weight: bold; white-space: nowrap; }
+  .chip .g { color: #ffd650; } .chip .x { color: #8ad0ff; }
+  .spacer { flex: 1; }
+
+  /* Map */
+  #mapLayer { position: absolute; left: 0; top: 0; width: 960px; height: 540px; pointer-events: auto; cursor: grab; }
+  #mapNodes { position: absolute; left: 0; top: 0; width: 1600px; height: 540px; }
+  .node { position: absolute; width: 62px; height: 62px; margin: -31px 0 0 -31px; border-radius: 50%; cursor: pointer;
+    border: 4px solid #5a3a12; background: radial-gradient(circle at 35% 30%, #ffe9a0, #d39a28 60%, #8a5a10);
+    font: bold 24px Georgia, "DejaVu Serif", serif; color: #3a2002; box-shadow: 0 4px 8px rgba(0,0,0,.5); padding: 0; }
+  .node.boss { width: 76px; height: 76px; margin: -38px 0 0 -38px; background: radial-gradient(circle at 35% 30%, #ffb090, #c2362a 60%, #6a120a); color: #fff; border-color: #3a0804; }
+  .node.locked { background: radial-gradient(circle at 35% 30%, #9a9a9a, #5a5a5a 60%, #303030); color: #222; cursor: default; border-color: #2a2a2a; }
+  .node.current { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 8px rgba(255,220,90,.45), 0 4px 8px rgba(0,0,0,.5); } }
+  .node .stars { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 3px; white-space: nowrap;
+    font: 18px "DejaVu Sans", sans-serif; letter-spacing: -1px; text-shadow: 0 1px 2px #000; }
+  .stars .on { color: #ffd23a; } .stars .off { color: rgba(60,40,20,.55); }
+  .node .lock { font-size: 20px; }
+  .mapArrow { position: absolute; top: 250px; width: 44px; height: 60px; font-size: 26px; padding: 0; }
+  #mapLeft { left: 8px; } #mapRight { right: 8px; }
+  #preview { position: absolute; left: 50%; top: 64px; width: 560px; transform: translateX(-50%); padding: 16px 22px; pointer-events: auto; }
+  #preview h2 { margin: 0; font: bold 26px Georgia, "DejaVu Serif", serif; color: #ffd767; }
+  #preview .sub { color: #d8c8a8; font-size: 14px; margin-bottom: 10px; }
+  .enemyRow { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 10px; }
+  .enemyRow figure { margin: 0; width: 70px; text-align: center; font-size: 11px; color: #e8dcc0; }
+  .enemyRow canvas { width: 62px; height: 62px; display: block; margin: 0 auto 2px; }
+  .kv { display: flex; gap: 18px; font-size: 15px; margin: 4px 0; flex-wrap: wrap; }
+  .kv b { color: #ffd767; } .warn { color: #ff7a6a !important; } .ok { color: #7dff8a !important; }
+  #preview .row { justify-content: flex-end; margin-top: 12px; }
+
+  /* Hero screen */
+  #scr-hero .slot { position: absolute; width: 74px; height: 74px; border-radius: 12px; border: 2px dashed rgba(255,255,255,.25);
+    background: rgba(0,0,0,.35); pointer-events: auto; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: rgba(255,255,255,.45); text-align: center; }
+  #scr-hero .slot.filled { border: none; background: none; }
+  #scr-hero .slot canvas { width: 74px; height: 74px; }
+  .heroInfo { position: absolute; left: 24px; top: 402px; width: 404px; pointer-events: auto; }
+  .heroInfo .name { font: bold 20px Georgia, "DejaVu Serif", serif; color: #ffd767; }
+  .xpbar { position: relative; height: 16px; background: #10162a; border: 1px solid #000; border-radius: 8px; overflow: hidden; margin: 4px 0 8px; }
+  .xpbar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(#8ad0ff, #2a78d8); }
+  .xpbar span { position: absolute; inset: 0; text-align: center; font-size: 11px; line-height: 15px; font-weight: bold; text-shadow: 0 1px 2px #000; }
+  .rightCol { position: absolute; left: 452px; top: 60px; width: 496px; bottom: 8px; display: flex; flex-direction: column; gap: 8px; pointer-events: auto; }
+  .box { padding: 8px 12px; }
+  .box h3 { margin: 0 0 6px; font: bold 15px Georgia, "DejaVu Serif", serif; color: #ffd767; display: flex; align-items: center; gap: 8px; }
+  #stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px 14px; font-size: 13px; }
+  #stats div { display: flex; justify-content: space-between; }
+  #stats b { color: #fff; } #stats .up { color: #7dff8a; } #stats .down { color: #ff7a6a; }
+  .skill { display: flex; align-items: center; gap: 8px; padding: 3px 0; border-top: 1px solid rgba(255,255,255,.07); }
+  .skill:first-of-type { border-top: none; }
+  .skill canvas { width: 34px; height: 34px; flex: none; }
+  .skill .txt { flex: 1; min-width: 0; }
+  .skill .nm { font-weight: bold; font-size: 13px; } .skill .nm em { color: #ffd767; font-style: normal; margin-left: 6px; }
+  .skill .ds { font-size: 11px; color: #cbbd9e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .skill .btn { width: 96px; flex: none; }
+  #inv { display: grid; grid-template-columns: repeat(10, 44px); gap: 4px; }
+  .cell { width: 44px; height: 44px; border-radius: 8px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.08); position: relative; cursor: pointer; }
+  .cell canvas { width: 44px; height: 44px; display: block; }
+  .cell .lv { position: absolute; right: 2px; bottom: 0; font-size: 10px; font-weight: bold; text-shadow: 0 0 3px #000, 0 0 2px #000; }
+  .cell.toohigh canvas { filter: grayscale(.7) brightness(.6); }
+  .cell.toohigh .lv { color: #ff7a6a; }
+  .cell.sel { outline: 2px solid #ffd767; }
+  .cell.new::after { content: 'NEW'; position: absolute; left: 1px; top: 1px; font-size: 9px; font-weight: bold; color: #3a2002; background: #ffd767; border-radius: 4px; padding: 0 3px; }
+  #itemTip { position: absolute; width: 230px; padding: 10px 12px; z-index: 5; pointer-events: auto; font-size: 13px; }
+  #itemTip .nm { font-weight: bold; font-size: 15px; }
+  #itemTip .meta { color: #cbbd9e; font-size: 12px; margin-bottom: 6px; }
+  #itemTip .st { display: flex; justify-content: space-between; }
+  #itemTip .row { justify-content: flex-start; margin-top: 8px; gap: 8px; }
+  .heroBtns { display: flex; gap: 8px; margin-top: 2px; }
+
+  /* Battle */
+  .bt-top { position: absolute; left: 0; right: 0; top: 0; height: 46px; display: flex; align-items: center; padding: 0 12px; gap: 12px; }
+  #bStage { font: bold 18px Georgia, "DejaVu Serif", serif; color: #ffd767; text-shadow: 0 2px 3px #000; }
+  #bWave { position: absolute; left: 50%; transform: translateX(-50%); font-weight: bold; font-size: 17px; text-shadow: 0 2px 3px #000;
+    background: rgba(0,0,0,.45); padding: 3px 14px; border-radius: 14px; border: 1px solid rgba(255,215,103,.5); }
+  .bt-btns { margin-left: auto; display: flex; gap: 8px; }
+  .bt-btns .btn { padding: 5px 12px; font-size: 15px; min-width: 52px; }
+  #btnAuto.on { background: linear-gradient(#ffd767, #d48d16); color: #3a2002; text-shadow: none; }
+  #btnSpeed.on { background: linear-gradient(#5aa0ff, #2a58b8); }
+  #ultBtn { position: absolute; left: 18px; top: 448px; width: 86px; height: 86px; border-radius: 14px; border: none; background: transparent; cursor: pointer; padding: 0; }
+
+  /* Result */
+  #resBox { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); width: 640px; text-align: center; pointer-events: auto; }
+  #resTitle { font: bold 58px Georgia, "DejaVu Serif", serif; color: #ffd767; text-shadow: 0 3px 0 #7a4a08, 0 6px 16px #000; }
+  #resTitle.lose { color: #ff7a6a; text-shadow: 0 3px 0 #5a0a04, 0 6px 16px #000; }
+  #resStars { font: 46px "DejaVu Sans", sans-serif; line-height: 1; height: 50px; }
+  #resStars span { display: inline-block; color: #3a3020; text-shadow: 0 2px 4px #000; transform: scale(.3); opacity: 0; animation: starIn .35s forwards; }
+  #resStars span.on { color: #ffd23a; }
+  @keyframes starIn { to { transform: scale(1); opacity: 1; } }
+  #resRewards { font-size: 19px; font-weight: bold; margin-top: 4px; text-shadow: 0 2px 3px #000; }
+  #resRewards .g { color: #ffd650; } #resRewards .x { color: #8ad0ff; } #resRewards .lvl { color: #7dff8a; display: block; font-size: 17px; }
+  #resItems { position: absolute; left: 0; right: 0; top: 318px; display: flex; justify-content: center; gap: 14px; pointer-events: auto; }
+  #resItems .card { width: 150px; padding: 8px; text-align: center; opacity: 0; transform: translateY(30px) scale(.6); animation: cardIn .45s forwards; }
+  #resItems .card canvas { width: 52px; height: 52px; }
+  #resItems .card .nm { font-size: 13px; font-weight: bold; }
+  @keyframes cardIn { to { opacity: 1; transform: none; } }
+  #resTips { margin: 14px auto 0; width: 460px; text-align: left; font-size: 15px; line-height: 1.6; }
+  #resTips li { color: #f0dcc0; }
+  #resBtns { position: absolute; left: 0; right: 0; bottom: 14px; display: flex; justify-content: center; gap: 14px; pointer-events: auto; }
+
+  /* Final */
+  #finalBox { position: absolute; left: 390px; right: 24px; top: 120px; text-align: center; pointer-events: auto; }
+  #finalBox h1 { margin: 0; font: bold 40px Georgia, "DejaVu Serif", serif; color: #ffd767; text-shadow: 0 3px 0 #7a4a08, 0 6px 16px #000; }
+  #finalBox p { font-size: 19px; text-shadow: 0 2px 3px #000; }
+  #finalBox .row { margin-top: 10px; }
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="cv" width="960" height="540"></canvas>
+
+  <div id="scr-title" class="screen">
+    <div class="logo">
+      <div class="logo-top">HERO WARS</div>
+      <div class="logo-main">Lone Champion</div>
+      <div class="logo-sub">One knight. Ten battles. The Lich Queen awaits.</div>
+    </div>
+    <div class="title-btns">
+      <button id="btnPlay" class="btn gold big">Play</button>
+      <button id="btnNew" class="btn">New Game</button>
+    </div>
+    <div class="foot">A fan-made tribute · works offline · no ads</div>
+    <div id="confirmNew" class="modal hidden">
+      <div class="panel"><h2>New Game?</h2><p>All progress, gear and stars will be lost.</p>
+        <div class="row"><button id="btnNewYes" class="btn red">Reset</button><button id="btnNewNo" class="btn">Cancel</button></div></div>
+    </div>
+  </div>
+
+  <div id="scr-map" class="screen">
+    <div id="mapLayer" class="live"><div id="mapNodes"></div></div>
+    <button id="mapLeft" class="btn mapArrow" aria-label="Scroll left">‹</button>
+    <button id="mapRight" class="btn mapArrow" aria-label="Scroll right">›</button>
+    <div class="topbar">
+      <button id="mapMenu" class="btn small">☰ Menu</button>
+      <span class="title">Campaign</span>
+      <span class="spacer"></span>
+      <span class="chip" id="mapLevel"></span>
+      <span class="chip"><span class="g" id="mapGold"></span></span>
+      <span class="chip" id="mapStars"></span>
+      <button id="mapHero" class="btn gold">Hero</button>
+    </div>
+    <div id="preview" class="panel hidden">
+      <h2 id="pvName"></h2>
+      <div class="sub" id="pvSub"></div>
+      <div class="kv"><span>Recommended level: <b id="pvRec"></b></span><span>Your level: <b id="pvLvl"></b></span><span>Power: <b id="pvPow"></b></span></div>
+      <div class="enemyRow" id="pvEnemies"></div>
+      <div class="kv"><span>First clear: <b id="pvGold"></b> gold · <b id="pvXp"></b> XP</span><span>Stars: <b id="pvStars"></b></span></div>
+      <div class="row"><button id="pvClose" class="btn">Close</button><button id="btnFight" class="btn gold">Fight!</button></div>
+    </div>
+  </div>
+
+  <div id="scr-hero" class="screen">
+    <div class="topbar">
+      <button id="heroBack" class="btn small">‹ Map</button>
+      <span class="title">Aldric, Knight of the Dawn</span>
+      <span class="spacer"></span>
+      <span class="chip">Power <b id="heroPower"></b></span>
+      <span class="chip"><span class="g" id="heroGold"></span></span>
+    </div>
+    <div class="slot" id="slot-weapon" style="left:28px;top:96px"></div>
+    <div class="slot" id="slot-helmet" style="left:28px;top:196px"></div>
+    <div class="slot" id="slot-chest" style="left:28px;top:296px"></div>
+    <div class="slot" id="slot-gloves" style="left:350px;top:96px"></div>
+    <div class="slot" id="slot-boots" style="left:350px;top:196px"></div>
+    <div class="slot" id="slot-amulet" style="left:350px;top:296px"></div>
+    <div class="heroInfo">
+      <div><span class="name">Level <span id="heroLevel"></span></span> <span id="heroRank"></span></div>
+      <div class="xpbar"><i id="heroXpFill"></i><span id="heroXp"></span></div>
+      <div class="heroBtns">
+        <button id="btnEquipBest" class="btn green">Equip best</button>
+        <button id="btnPromote" class="btn blue">Promote</button>
+        <button id="btnPotion" class="btn small">Potion</button>
+      </div>
+    </div>
+    <div class="rightCol">
+      <div class="panel box"><h3>Stats</h3><div id="stats"></div></div>
+      <div class="panel box"><h3>Skills</h3><div id="skills"></div></div>
+      <div class="panel box"><h3>Inventory <span id="invCount" style="font:12px sans-serif;color:#cbbd9e"></span></h3><div id="inv"></div></div>
+    </div>
+    <div id="itemTip" class="panel hidden"></div>
+    <div id="confirmPromote" class="modal hidden">
+      <div class="panel"><h2>Promote?</h2><p id="promoteText"></p>
+        <div class="row"><button id="btnPromoteYes" class="btn blue">Promote</button><button id="btnPromoteNo" class="btn">Cancel</button></div></div>
+    </div>
+  </div>
+
+  <div id="scr-battle" class="screen">
+    <div class="bt-top">
+      <span id="bStage"></span>
+      <span id="bWave"></span>
+      <div class="bt-btns">
+        <button id="btnPause" class="btn" aria-label="Pause">❚❚</button>
+        <button id="btnSpeed" class="btn">x1</button>
+        <button id="btnAuto" class="btn">AUTO</button>
+      </div>
+    </div>
+    <button id="ultBtn" aria-label="Fire ultimate"></button>
+    <div id="pause" class="modal hidden">
+      <div class="panel"><h2>Paused</h2>
+        <div class="row"><button id="btnResume" class="btn gold">Resume</button><button id="btnRestart" class="btn">Restart</button><button id="btnLeave" class="btn red">Leave</button></div></div>
+    </div>
+  </div>
+
+  <div id="scr-result" class="screen">
+    <div id="resBox">
+      <div id="resTitle"></div>
+      <div id="resStars"></div>
+      <div id="resRewards"></div>
+      <ul id="resTips"></ul>
+    </div>
+    <div id="resItems"></div>
+    <div id="resBtns"></div>
+  </div>
+
+  <div id="scr-final" class="screen">
+    <div id="finalBox">
+      <h1>The Lich Queen is defeated!</h1>
+      <p id="finalText"></p>
+      <div class="row"><button id="finalMap" class="btn gold">Back to map</button></div>
+    </div>
+  </div>
+</div>
+<script src="js/rng.js"></script>
+<script src="js/data.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/meta.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
