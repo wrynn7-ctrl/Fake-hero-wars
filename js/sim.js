@@ -576,7 +576,8 @@
       won: b.won, heroHpFrac: frac, time: b.t, stars: stars(b.won, frac),
       stalemate: b.stalemate, timeout: b.timeout, invalid: b.invalid,
       ults: b.stats.ults, kills: b.stats.kills, dealt: b.stats.dealt, taken: b.stats.taken,
-      killXp: b.stats.xp, killGold: b.stats.gold, wave: b.wave
+      killXp: b.stats.xp, killGold: b.stats.gold, wave: b.wave,
+      potionsUsed: b.hero.potionUsed ? 1 : 0
     };
   }
 

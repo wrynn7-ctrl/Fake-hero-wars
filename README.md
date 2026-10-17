@@ -57,7 +57,8 @@ Everything else, including movement, targeting, attacks and auto-skills, happens
 4. **Skills**: spend gold to upgrade (cost `120 × level^1.4`, skill level ≤ hero level).
 5. **Promotion**: with all six slots filled, **Promote** consumes the six items for a permanent
    +12 % to all base stats: White → Green → Blue → Violet, shown by the portrait frame color.
-6. **Potions** (250 gold, carry up to 3): one is drunk automatically per battle below 25 % HP.
+6. **Potions** (250 gold, carry up to 3): one is drunk automatically per battle below 25 % HP
+   and is gone from the bag afterwards (even if you leave or restart that battle).
 
 ## Stages
 

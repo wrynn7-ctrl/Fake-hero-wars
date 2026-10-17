@@ -274,12 +274,13 @@ async function fastForward(page, fnSrc, extraSteps) {
   await page.evaluate(() => HW.pause(true));
 
   section('3f. Defeat screen');
-  await page.evaluate(() => { const s = HW.starterBuild(); s.cleared = 4; HW.loadSave(s); HW.startBattle(4, { auto: true, speed: 2, seed: 4000 }); });
+  await page.evaluate(() => { const s = HW.starterBuild(); s.cleared = 4; s.potions = 2; HW.loadSave(s); HW.startBattle(4, { auto: true, speed: 2, seed: 4000 }); });
   await fastForward(page, 'false', 0);
   await page.waitForFunction(() => HW.screen() === 'result', null, { timeout: 15000 });
   await sleep(800);
   check((await page.textContent('#resTitle')) === 'DEFEAT' && (await page.$$('#resTips li')).length >= 3, 'defeat overlay with tips');
   check(!!(await page.$('#resRetry')) && !!(await page.$('#resHero')), 'defeat offers Retry and Hero buttons');
+  check((await page.evaluate(() => HW.getSave().potions)) === 1, 'the potion drunk in that battle is used up (2 -> 1)');
   await shot(page, 'defeat');
   await page.click('#resMap');
 

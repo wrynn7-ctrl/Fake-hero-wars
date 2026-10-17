@@ -198,13 +198,15 @@
     var r = computeRewards(stageId, battle, firstClear, seed);
     var before = s.level;
     s.battles++;
+    // A potion drunk in battle is gone from the bag.
+    if (battle.potionsUsed) s.potions = Math.max(0, (s.potions || 0) - battle.potionsUsed);
     s.gold += r.gold;
     s.xp += r.xp;
     s.level = levelFor(s.xp);
     syncSkills(s);
-    var sold = 0;
+    var sold = 0, soldIds = [];
     r.items.forEach(function (it) {
-      if (s.inventory.length >= 20) sold += sellValue(it);
+      if (s.inventory.length >= 20) { sold += sellValue(it); soldIds.push(it.id); }
       else s.inventory.push(it);
     });
     s.gold += sold;
@@ -212,8 +214,8 @@
       s.stars[stageId] = Math.max(s.stars[stageId] || 0, battle.stars);
       s.cleared = Math.max(s.cleared, stageId);
     }
-    return { gold: r.gold + sold, xp: r.xp, items: r.items, autoSold: sold, levelBefore: before, levelAfter: s.level,
-      firstClear: r.firstClear, stars: battle.stars, won: battle.won };
+    return { gold: r.gold + sold, xp: r.xp, items: r.items, autoSold: sold, soldIds: soldIds, levelBefore: before, levelAfter: s.level,
+      firstClear: r.firstClear, stars: battle.stars, won: battle.won, potionsUsed: battle.potionsUsed || 0 };
   }
 
   function findInv(s, id) {

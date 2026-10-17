@@ -1309,7 +1309,7 @@
     c.fillStyle = hz; c.fillRect(0, 0, MAP_W, H);
     return m;
   }
-  function drawMap(scroll, t, cleared) {
+  function drawMap(scroll, t, cleared, rank) {
     begin();
     if (!mapCache || mapCache.res !== res) { mapCache = { img: buildMap(), res: res }; }
     var c = ctx;
@@ -1318,7 +1318,7 @@
     var n = MAP_NODES[Math.min(cleared, MAP_NODES.length - 1)];
     c.save(); c.translate(n[0] - scroll - 44, n[1] + 14 + Math.sin(t * 3) * 2); c.scale(0.55, 0.55);
     c.globalAlpha = 0.3; ellipse(c, 0, 2, 26, 7, '#000'); c.globalAlpha = 1;
-    drawHero(c, { t: t, rank: 0 });
+    drawHero(c, { t: t, rank: rank || 0 });
     c.restore();
   }
 

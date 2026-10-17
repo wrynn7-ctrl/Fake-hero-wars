@@ -26,7 +26,7 @@
     var g = $('game');
     g.style.transform = 'translate(' + Math.round((w - 960 * s) / 2) + 'px,' + Math.round((h - 540 * s) / 2) + 'px) scale(' + s + ')';
     g.style.left = '0px'; g.style.top = '0px';
-    R.setResolution(Math.round(s * (root.devicePixelRatio || 1) * 4) / 4);
+    R.setResolution(Math.ceil(s * (root.devicePixelRatio || 1) * 4) / 4);
   }
 
   function show(name) {
@@ -34,6 +34,7 @@
       $('scr-' + n).classList.toggle('active', n === name);
     });
     S.screen = name;
+    if (name !== 'map') $('preview').classList.add('hidden');
     if (name === 'map') refreshMap(true);
     if (name === 'hero') refreshHero();
   }
@@ -123,7 +124,8 @@
     $('pvLvl').textContent = s.level;
     $('pvLvl').className = s.level < st.rec ? 'warn' : 'ok';
     $('pvPow').textContent = M.power(s);
-    var r = M.computeRewards(id, { won: true }, true, 0);
+    var first = !(s.stars[id] > 0), r = M.computeRewards(id, { won: true }, first, 0);
+    $('pvRewardKind').textContent = first ? 'First clear' : 'Replay';
     $('pvGold').textContent = r.gold;
     $('pvXp').textContent = r.xp;
     $('pvStars').innerHTML = s.stars[id] ? '<span style="color:#ffd23a">' + '★'.repeat(s.stars[id]) + '</span>' : 'none yet';
@@ -289,6 +291,7 @@
     S.speed = opts.speed || s.settings.speed || 1;
     S.auto = opts.auto != null ? !!opts.auto : !!s.settings.auto;
     S.battle = SIM.create(stageId, M.heroSpec(s), { seed: S.seed, auto: S.auto, collectEvents: true, validate: true });
+    S.battleLevel = s.level;
     S.paused = false;
     S.resultShown = false;
     S.result = null;
@@ -335,6 +338,14 @@
     $('pause').classList.toggle('hidden', !on);
   }
 
+  // Restart / Leave: a potion already drunk in the abandoned battle is still used up.
+  function abandonBattle() {
+    if (S.battle && !S.resultShown && S.battle.hero.potionUsed) {
+      S.save.potions = Math.max(0, (S.save.potions || 0) - 1);
+      save();
+    }
+  }
+
   function finishBattle() {
     var b = S.battle, r = SIM.result(b);
     var sum = M.applyRewards(S.save, b.stageId, r, S.seed);
@@ -359,7 +370,8 @@
     }
     var lv = sum.levelAfter > sum.levelBefore ? '<span class="lvl">Level up! ' + sum.levelBefore + ' → ' + sum.levelAfter + '</span>' : '';
     $('resRewards').innerHTML = (won ? '<span class="g">+' + sum.gold + ' gold</span> · ' : '') + '<span class="x">+' + sum.xp + ' XP</span>' +
-      (won ? '' : ' <span style="color:#d8c8a8">(partial)</span>') + lv;
+      (won ? '' : ' <span style="color:#d8c8a8">(partial)</span>') +
+      (sum.potionsUsed ? ' · <span style="color:#ff8da0">−' + sum.potionsUsed + ' potion</span>' : '') + lv;
     $('resTips').innerHTML = won ? '' : [
       'Level up — replay earlier stages for XP and gold.',
       'Equip better gear on the Hero screen (try “Equip best”).',
@@ -374,6 +386,7 @@
       card.appendChild(iconCanvas(52, function (x, px) { R.drawItemIcon(x, it, px); }));
       card.appendChild(el('div', 'nm', '<span style="color:' + D.RARITIES[it.rarity].color + '">' + it.name + '</span>'));
       card.appendChild(el('div', null, '<span style="font-size:11px;color:#cbbd9e">' + D.RARITIES[it.rarity].name + ' ' + it.slot + ' · Lv ' + it.req + '</span>'));
+      if (sum.soldIds.indexOf(it.id) >= 0) card.appendChild(el('div', null, '<span style="font-size:11px;color:#ff9a7a">Bag full · sold +' + M.sellValue(it) + 'g</span>'));
       items.appendChild(card);
     });
     if (won && !sum.items.length) items.appendChild(el('div', 'panel card', '<div class="nm">No item this time</div>'));
@@ -383,7 +396,7 @@
     if (won) {
       add('resContinue', 'Continue', 'gold big', function () {
         if (res.stageId === D.STAGES.length && sum.firstClear) { showFinal(); return; }
-        show(sum.items.length || sum.levelAfter > sum.levelBefore ? 'hero' : 'map');
+        show(sum.items.length > sum.soldIds.length || sum.levelAfter > sum.levelBefore ? 'hero' : 'map');
       });
       add('resReplay', 'Replay', '', function () { startBattle(res.stageId); });
     } else {
@@ -445,8 +458,8 @@
     $('btnPotion').onclick = function () { if (M.buyPotion(S.save)) { save(); refreshHero(); } };
     $('btnPause').onclick = function () { pause(true); };
     $('btnResume').onclick = function () { pause(false); };
-    $('btnRestart').onclick = function () { startBattle(S.stageId); };
-    $('btnLeave').onclick = function () { S.battle = null; S.paused = false; $('pause').classList.add('hidden'); show('map'); };
+    $('btnRestart').onclick = function () { abandonBattle(); startBattle(S.stageId); };
+    $('btnLeave').onclick = function () { abandonBattle(); S.battle = null; S.paused = false; $('pause').classList.add('hidden'); show('map'); };
     $('btnSpeed').onclick = function () { setSpeed(S.speed === 1 ? 2 : 1); };
     $('btnAuto').onclick = function () { setAuto(!S.auto); };
     $('ultBtn').onclick = fireUltimate;
@@ -489,13 +502,13 @@
       b.events.length = 0;
       R.drawResult(b, hudInfo(), S.resultT, S.result.r.won);
     } else if (S.screen === 'title') R.drawTitle(S.t);
-    else if (S.screen === 'map') R.drawMap(S.mapScroll, S.t, S.save.cleared);
+    else if (S.screen === 'map') R.drawMap(S.mapScroll, S.t, S.save.cleared, S.save.rank);
     else if (S.screen === 'hero') R.drawHeroBackdrop(S.t, S.save.rank);
     else if (S.screen === 'final') R.drawFinal(S.t, S.save.rank);
     root.requestAnimationFrame(frame);
   }
   function hudInfo() {
-    return { t: S.t, rank: S.save.rank, level: S.save.level, auto: S.auto, slowmo: R.fx().slowmo > 0 };
+    return { t: S.t, rank: S.save.rank, level: S.battle ? S.battleLevel : S.save.level, auto: S.auto, slowmo: R.fx().slowmo > 0 };
   }
 
   // ---------------------------------------------------------------- API
